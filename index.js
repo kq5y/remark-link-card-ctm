@@ -32,7 +32,7 @@ function fetchData(url) {
             parsedUrl.hostname);
         const description = (ogResult && ogResult.ogDescription && he.encode(ogResult.ogDescription) ||
             "");
-        const faviconUrl = getFaviconUrl(parsedUrl.hostname);
+        const faviconUrl = getFaviconUrl(url);
         let ogImageSrc, ogImageAlt;
         if (ogResult && ogResult.ogImage && ogResult.ogImage.length >= 1) {
             const ogImage = ogResult.ogImage[0];
@@ -82,7 +82,7 @@ const remarkLinkCardCtm = (options = {}) => {
     return (tree) => __awaiter(void 0, void 0, void 0, function* () {
         const blocks = [];
         visit(tree, "paragraph", (node, index) => {
-            if (node.children.length !== 1 || !index) {
+            if (node.children.length !== 1) {
                 return;
             }
             if (node.data !== undefined) {
