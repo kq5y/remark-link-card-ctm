@@ -82,7 +82,10 @@ const remarkLinkCardCtm = (options = {}) => {
     return (tree) => __awaiter(void 0, void 0, void 0, function* () {
         const blocks = [];
         visit(tree, "paragraph", (node, index) => {
-            if (node.children.length !== 1 || !node.data || !index) {
+            if (node.children.length !== 1 || !index) {
+                return;
+            }
+            if (node.data !== undefined) {
                 return;
             }
             visit(node, "text", (textNode) => {

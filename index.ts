@@ -96,7 +96,10 @@ const remarkLinkCardCtm = (options: RemarkLinkCardCtmOptions = {}) => {
   return async (tree: Root) => {
     const blocks: Block[] = [];
     visit(tree, "paragraph", (node, index) => {
-      if(node.children.length !== 1 || !node.data || !index){
+      if(node.children.length !== 1 || !index){
+        return;
+      }
+      if(node.data !== undefined){
         return;
       }
       visit(node, "text", (textNode) => {
