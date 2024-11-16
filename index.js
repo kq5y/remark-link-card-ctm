@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { visit } from "unist-util-visit";
 import getOpenGraph from "open-graph-scraper";
-import { encode } from "he";
+import he from "he";
 function getFaviconUrl(url) {
     return `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${url}&size=64`;
 }
@@ -28,16 +28,16 @@ function fetchData(url) {
     return __awaiter(this, void 0, void 0, function* () {
         const ogResult = yield getOpenGraphResult(url);
         const parsedUrl = new URL(url);
-        const title = (ogResult && ogResult.ogTitle && encode(ogResult.ogTitle) ||
+        const title = (ogResult && ogResult.ogTitle && he.encode(ogResult.ogTitle) ||
             parsedUrl.hostname);
-        const description = (ogResult && ogResult.ogDescription && encode(ogResult.ogDescription) ||
+        const description = (ogResult && ogResult.ogDescription && he.encode(ogResult.ogDescription) ||
             "");
         const faviconUrl = getFaviconUrl(parsedUrl.hostname);
         let ogImageSrc, ogImageAlt;
         if (ogResult && ogResult.ogImage && ogResult.ogImage.length >= 1) {
             const ogImage = ogResult.ogImage[0];
             ogImageSrc = ogImage.url;
-            ogImageAlt = (ogImage.alt && encode(ogImage.alt) || "");
+            ogImageAlt = (ogImage.alt && he.encode(ogImage.alt) || "");
         }
         else {
             ogImageSrc = "";

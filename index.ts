@@ -1,7 +1,7 @@
 import type { Root } from "mdast";
 import { visit } from "unist-util-visit";
 import getOpenGraph from "open-graph-scraper";
-import { encode } from "he";
+import he from "he";
 
 interface RemarkLinkCardCtmOptions {
   shortenUrl?: boolean;
@@ -39,11 +39,11 @@ async function fetchData(url: string): Promise<ResultData> {
   const ogResult = await getOpenGraphResult(url);
   const parsedUrl = new URL(url);
   const title = (
-    ogResult && ogResult.ogTitle && encode(ogResult.ogTitle) ||
+    ogResult && ogResult.ogTitle && he.encode(ogResult.ogTitle) ||
     parsedUrl.hostname
   );
   const description = (
-    ogResult && ogResult.ogDescription && encode(ogResult.ogDescription) ||
+    ogResult && ogResult.ogDescription && he.encode(ogResult.ogDescription) ||
     ""
   );
   const faviconUrl = getFaviconUrl(parsedUrl.hostname);
@@ -51,7 +51,7 @@ async function fetchData(url: string): Promise<ResultData> {
   if(ogResult && ogResult.ogImage && ogResult.ogImage.length >= 1){
     const ogImage = ogResult.ogImage[0];
     ogImageSrc = ogImage.url;
-    ogImageAlt = (ogImage.alt && encode(ogImage.alt) || "");
+    ogImageAlt = (ogImage.alt && he.encode(ogImage.alt) || "");
   } else {
     ogImageSrc = "";
     ogImageAlt = title;
