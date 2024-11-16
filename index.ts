@@ -62,7 +62,7 @@ async function fetchData(url: string): Promise<ResultData> {
 }
 
 function generateHtml(url: string, data: ResultData, options: RemarkLinkCardCtmOptions): string {
-  const displayUrl = options.shortenUrl ? data.hostname : url;
+  const displayUrl = decodeURI(options.shortenUrl ? data.hostname : url);
   return `
     <a class="rlc-container" href="${url}">
       <div class="rlc-info">
@@ -89,7 +89,7 @@ function generateHtml(url: string, data: ResultData, options: RemarkLinkCardCtmO
         />
       </div>
     </a>
-  `;
+  `.trim();
 }
 
 const remarkLinkCardCtm = (options: RemarkLinkCardCtmOptions = {}) => {
@@ -119,6 +119,7 @@ const remarkLinkCardCtm = (options: RemarkLinkCardCtmOptions = {}) => {
         value: linkCardHtml
       });
     }
+    return tree;
   };
 };
 

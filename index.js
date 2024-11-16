@@ -49,7 +49,7 @@ function fetchData(url) {
     });
 }
 function generateHtml(url, data, options) {
-    const displayUrl = options.shortenUrl ? data.hostname : url;
+    const displayUrl = decodeURI(options.shortenUrl ? data.hostname : url);
     return `
     <a class="rlc-container" href="${url}">
       <div class="rlc-info">
@@ -76,7 +76,7 @@ function generateHtml(url, data, options) {
         />
       </div>
     </a>
-  `;
+  `.trim();
 }
 const remarkLinkCardCtm = (options = {}) => {
     return (tree) => __awaiter(void 0, void 0, void 0, function* () {
@@ -103,6 +103,7 @@ const remarkLinkCardCtm = (options = {}) => {
                 value: linkCardHtml
             });
         }
+        return tree;
     });
 };
 export default remarkLinkCardCtm;
