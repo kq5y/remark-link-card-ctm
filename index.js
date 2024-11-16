@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { visit } from "unist-util-visit";
+import visit from "unist-util-visit";
 import getOpenGraph from "open-graph-scraper";
 import he from "he";
 function getFaviconUrl(url) {

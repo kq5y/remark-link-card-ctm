@@ -1,5 +1,5 @@
-import type { Root } from "mdast";
-import { visit } from "unist-util-visit";
+import type { Literal, Parent } from "unist";
+import visit from "unist-util-visit";
 import getOpenGraph from "open-graph-scraper";
 import he from "he";
 
@@ -93,16 +93,16 @@ function generateHtml(url: string, data: ResultData, options: RemarkLinkCardCtmO
 }
 
 const remarkLinkCardCtm = (options: RemarkLinkCardCtmOptions = {}) => {
-  return async (tree: Root) => {
+  return async (tree: Parent<Literal>) => {
     const blocks: Block[] = [];
-    visit(tree, "paragraph", (node, index) => {
+    visit<Parent>(tree, "paragraph", (node, index) => {
       if(node.children.length !== 1 || !index){
         return;
       }
       if(node.data !== undefined){
         return;
       }
-      visit(node, "text", (textNode) => {
+      visit<Literal<string>>(node, "text", (textNode) => {
         const urls = textNode.value.match(
           /(https?:\/\/|www(?=\.))([-.\w]+)([^ \t\r\n]*)/g
         );
