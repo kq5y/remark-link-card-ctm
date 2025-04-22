@@ -48,6 +48,9 @@ async function fetchData(url: string): Promise<ResultData> {
 	if (ogResult?.ogImage && ogResult.ogImage.length >= 1) {
 		const ogImage = ogResult.ogImage[0];
 		ogImageSrc = ogImage.url;
+		if (ogImageSrc.startsWith("/")) {
+			ogImageSrc = new URL(ogImageSrc, url).href;
+		}
 		ogImageAlt = (ogImage.alt && he.encode(ogImage.alt)) || "";
 	} else {
 		ogImageSrc = "";

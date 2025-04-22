@@ -36,6 +36,9 @@ function fetchData(url) {
         if ((ogResult === null || ogResult === void 0 ? void 0 : ogResult.ogImage) && ogResult.ogImage.length >= 1) {
             const ogImage = ogResult.ogImage[0];
             ogImageSrc = ogImage.url;
+            if (ogImageSrc.startsWith("/")) {
+                ogImageSrc = new URL(ogImageSrc, url).href;
+            }
             ogImageAlt = (ogImage.alt && he.encode(ogImage.alt)) || "";
         }
         else {
