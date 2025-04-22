@@ -7,9 +7,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import visit from "unist-util-visit";
-import getOpenGraph from "open-graph-scraper";
 import he from "he";
+import getOpenGraph from "open-graph-scraper";
+import visit from "unist-util-visit";
 function getFaviconUrl(url) {
     return `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${url}&size=64`;
 }
@@ -28,23 +28,27 @@ function fetchData(url) {
     return __awaiter(this, void 0, void 0, function* () {
         const ogResult = yield getOpenGraphResult(url);
         const parsedUrl = new URL(url);
-        const title = (ogResult && ogResult.ogTitle && he.encode(ogResult.ogTitle) ||
-            parsedUrl.hostname);
-        const description = (ogResult && ogResult.ogDescription && he.encode(ogResult.ogDescription) ||
-            "");
+        const title = ((ogResult === null || ogResult === void 0 ? void 0 : ogResult.ogTitle) && he.encode(ogResult.ogTitle)) || parsedUrl.hostname;
+        const description = ((ogResult === null || ogResult === void 0 ? void 0 : ogResult.ogDescription) && he.encode(ogResult.ogDescription)) || "";
         const faviconUrl = getFaviconUrl(url);
-        let ogImageSrc, ogImageAlt;
-        if (ogResult && ogResult.ogImage && ogResult.ogImage.length >= 1) {
+        let ogImageSrc;
+        let ogImageAlt;
+        if ((ogResult === null || ogResult === void 0 ? void 0 : ogResult.ogImage) && ogResult.ogImage.length >= 1) {
             const ogImage = ogResult.ogImage[0];
             ogImageSrc = ogImage.url;
-            ogImageAlt = (ogImage.alt && he.encode(ogImage.alt) || "");
+            ogImageAlt = (ogImage.alt && he.encode(ogImage.alt)) || "";
         }
         else {
             ogImageSrc = "";
             ogImageAlt = title;
         }
         return {
-            title, description, faviconUrl, ogImageSrc, ogImageAlt, hostname: parsedUrl.hostname
+            title,
+            description,
+            faviconUrl,
+            ogImageSrc,
+            ogImageAlt,
+            hostname: parsedUrl.hostname,
         };
     });
 }
@@ -67,14 +71,16 @@ function generateHtml(url, data, options) {
           <span class="rlc-url">${displayUrl}</span>
         </div>
       </div>
-      <div class="rlc-image-container">
+      ${data.ogImageSrc
+        ? `<div class="rlc-image-container">
         <img
           class="rlc-image"
           src="${data.ogImageSrc}"
           alt="${data.ogImageAlt}"
           ${options.imgAsyncLazy ? `decoding="async" loading="lazy"` : ""}
         />
-      </div>
+      </div>`
+        : ""}
     </a>
   `.trim();
 }
@@ -93,7 +99,7 @@ const remarkLinkCardCtm = (options = {}) => {
                 if (urls && urls.length === 1) {
                     blocks.push({
                         url: urls[0],
-                        index: index
+                        index: index,
                     });
                 }
             });
@@ -103,7 +109,7 @@ const remarkLinkCardCtm = (options = {}) => {
             const linkCardHtml = generateHtml(url, data, options);
             tree.children.splice(index, 1, {
                 type: "html",
-                value: linkCardHtml
+                value: linkCardHtml,
             });
         }
         return tree;

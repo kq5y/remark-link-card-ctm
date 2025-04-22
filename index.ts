@@ -86,14 +86,18 @@ function generateHtml(
           <span class="rlc-url">${displayUrl}</span>
         </div>
       </div>
-      <div class="rlc-image-container">
+      ${
+				data.ogImageSrc
+					? `<div class="rlc-image-container">
         <img
           class="rlc-image"
           src="${data.ogImageSrc}"
           alt="${data.ogImageAlt}"
           ${options.imgAsyncLazy ? `decoding="async" loading="lazy"` : ""}
         />
-      </div>
+      </div>`
+					: ""
+			}
     </a>
   `.trim();
 }
