@@ -10,16 +10,60 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import he from "he";
 import getOpenGraph from "open-graph-scraper";
 import visit from "unist-util-visit";
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
 function getFaviconUrl(url) {
     return `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${url}&size=64`;
+}
+function getYoutubeMetadata(url) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const response = yield fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}`, {
+                headers: {
+                    "User-Agent": USER_AGENT,
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`YouTube oEmbed request failed: ${response.statusText}`);
+            }
+            const data = yield response.json();
+            return {
+                ogTitle: `${data.title} - YouTube`,
+                ogImage: [
+                    {
+                        url: data.thumbnail_url,
+                        alt: data.title,
+                    }
+                ]
+            };
+        }
+        catch (error) {
+            console.error(`Error fetching YouTube metadata: ${error}`);
+            return undefined;
+        }
+    });
 }
 function getOpenGraphResult(url) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const { result } = yield getOpenGraph({ url, timeout: 10000 });
+            let { result } = yield getOpenGraph({
+                url,
+                timeout: 10000,
+                fetchOptions: {
+                    headers: {
+                        "User-Agent": USER_AGENT,
+                    },
+                },
+            });
+            if (url.includes("youtube.com") || url.includes("youtu.be")) {
+                const youtubeMetadata = yield getYoutubeMetadata(url);
+                if (youtubeMetadata) {
+                    result = Object.assign(Object.assign({}, result), youtubeMetadata);
+                }
+            }
             return result;
         }
         catch (error) {
+            console.error(`Error fetching Open Graph data: ${error}`);
             return undefined;
         }
     });

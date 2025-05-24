@@ -3,6 +3,8 @@ import getOpenGraph from "open-graph-scraper";
 import type { Literal, Parent } from "unist";
 import visit from "unist-util-visit";
 
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
+
 interface RemarkLinkCardCtmOptions {
 	shortenUrl?: boolean;
 	imgAsyncLazy?: boolean;
@@ -26,11 +28,57 @@ function getFaviconUrl(url: string) {
 	return `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${url}&size=64`;
 }
 
+async function getYoutubeMetadata(url: string) {
+	try {
+		const response = await fetch(
+			`https://www.youtube.com/oembed?url=${encodeURIComponent(
+				url
+			)}`,
+			{
+				headers: {
+					"User-Agent": USER_AGENT,
+				},
+			}
+		);
+		if (!response.ok) {
+			throw new Error(`YouTube oEmbed request failed: ${response.statusText}`);
+		}
+		const data = await response.json();
+		return {
+			ogTitle: `${data.title} - YouTube`,
+			ogImage: [
+				{
+					url: data.thumbnail_url,
+					alt: data.title,
+				}
+			]
+		};
+	} catch (error) {
+		console.error(`Error fetching YouTube metadata: ${error}`);
+		return undefined;
+	}
+}
+
 async function getOpenGraphResult(url: string) {
 	try {
-		const { result } = await getOpenGraph({ url, timeout: 10000 });
+		let { result } = await getOpenGraph({
+			url,
+			timeout: 10000,
+			fetchOptions: {
+				headers: {
+					"User-Agent": USER_AGENT,
+				},
+			},
+		});
+		if (url.includes("youtube.com") || url.includes("youtu.be")) {
+			const youtubeMetadata = await getYoutubeMetadata(url);
+			if (youtubeMetadata) {
+				result = { ...result, ...youtubeMetadata };
+			}
+		}
 		return result;
 	} catch (error) {
+		console.error(`Error fetching Open Graph data: ${error}`);
 		return undefined;
 	}
 }
