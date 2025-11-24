@@ -1,6 +1,6 @@
 {
   "name": "remark-link-card-ctm",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "remark-link-card-ctm",
   "scripts": {
     "build": "tsc --build --clean && tsc --build --declaration"
@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@types/he": "^1.2.3",
-    "@types/unist": "^3.0.3"
+    "@types/unist": "^3.0.3",
+    "unified": "^11.0.5"
   }
 }

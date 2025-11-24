@@ -1,3 +1,4 @@
+import type { Plugin } from "unified";
 import type { Parent } from "unist";
 interface RemarkLinkCardCtmOptions {
     shortenUrl?: boolean;
@@ -5,5 +6,5 @@ interface RemarkLinkCardCtmOptions {
     fallbackImageSrc?: string;
     fallbackImageAlt?: string;
 }
-declare const remarkLinkCardCtm: (options?: RemarkLinkCardCtmOptions) => (tree: Parent) => Promise<Parent>;
+declare const remarkLinkCardCtm: Plugin<[RemarkLinkCardCtmOptions], Parent>;
 export default remarkLinkCardCtm;

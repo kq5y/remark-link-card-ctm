@@ -1,5 +1,6 @@
 import he from "he";
 import getOpenGraph from "open-graph-scraper";
+import type { Plugin } from "unified";
 import type { Literal, Parent } from "unist";
 import { visit } from "unist-util-visit";
 
@@ -200,8 +201,8 @@ function generateHtml(
   `.trim();
 }
 
-const remarkLinkCardCtm = (options: RemarkLinkCardCtmOptions = {}) => {
-	return async (tree: Parent) => {
+const remarkLinkCardCtm: Plugin<[RemarkLinkCardCtmOptions], Parent> = (options = {}) => {
+	return async (tree) => {
 		const blocks: Block[] = [];
 		visit(tree, "paragraph", (node: Parent, index: number) => {
 			if (node.children.length !== 1) {
