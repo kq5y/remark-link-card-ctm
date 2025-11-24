@@ -78,7 +78,7 @@ async function getOpenGraphResult(url: string) {
 		}
 		return result;
 	} catch (error) {
-		console.error(`Error fetching Open Graph data: ${error}`);
+		console.error(`Error fetching Open Graph data: ${url}`);
 		return undefined;
 	}
 }
@@ -137,9 +137,8 @@ function generateHtml(
           <span class="rlc-url">${displayUrl}</span>
         </div>
       </div>
-      ${
-				data.ogImageSrc
-					? `<div class="rlc-image-container">
+      ${data.ogImageSrc
+			? `<div class="rlc-image-container">
         <img
           class="rlc-image"
           src="${data.ogImageSrc}"
@@ -147,8 +146,8 @@ function generateHtml(
           ${options.imgAsyncLazy ? `decoding="async" loading="lazy"` : ""}
         />
       </div>`
-					: ""
-			}
+			: ""
+		}
     </a>
   `.trim();
 }
