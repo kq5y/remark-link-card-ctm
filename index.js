@@ -173,10 +173,18 @@ const remarkLinkCardCtm = (options = {}) => {
         for (const { url, index } of blocks) {
             const data = await fetchData(url);
             const linkCardHtml = generateHtml(url, data, options);
-            tree.children.splice(index, 1, {
-                type: "html",
-                value: linkCardHtml,
-            });
+            if (index === undefined) {
+                tree.children.push({
+                    type: "html",
+                    value: linkCardHtml,
+                });
+            }
+            else {
+                tree.children.splice(index, 1, {
+                    type: "html",
+                    value: linkCardHtml,
+                });
+            }
         }
         return tree;
     };

@@ -24,9 +24,9 @@ importers:
       '@types/he':
         specifier: ^1.2.3
         version: 1.2.3
-      '@types/unist':
-        specifier: ^3.0.3
-        version: 3.0.3
+      '@types/mdast':
+        specifier: ^4.0.4
+        version: 4.0.4
       unified:
         specifier: ^11.0.5
         version: 11.0.5
@@ -35,6 +35,9 @@ packages:
 
   '@types/he@1.2.3':
     resolution: {integrity: sha512-q67/qwlxblDzEDvzHhVkwc1gzVWxaNxeyHUBF4xElrvjL11O+Ytze+1fGpBHlr/H9myiBUaUXNnNPmBHxxfAcA==}
+
+  '@types/mdast@4.0.4':
+    resolution: {integrity: sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==}
 
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
@@ -178,6 +181,10 @@ packages:
 snapshots:
 
   '@types/he@1.2.3': {}
+
+  '@types/mdast@4.0.4':
+    dependencies:
+      '@types/unist': 3.0.3
 
   '@types/unist@3.0.3': {}
 

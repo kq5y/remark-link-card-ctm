@@ -1,7 +1,7 @@
 import he from "he";
+import type { Root } from "mdast";
 import getOpenGraph from "open-graph-scraper";
 import type { Plugin } from "unified";
-import type { Literal, Parent } from "unist";
 import { visit } from "unist-util-visit";
 
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
@@ -16,7 +16,7 @@ interface RemarkLinkCardCtmOptions {
 
 interface Block {
 	url: string;
-	index: number;
+	index: number | undefined;
 }
 
 interface ResultData {
@@ -201,17 +201,17 @@ function generateHtml(
   `.trim();
 }
 
-const remarkLinkCardCtm: Plugin<[RemarkLinkCardCtmOptions], Parent> = (options = {}) => {
+const remarkLinkCardCtm: Plugin<[RemarkLinkCardCtmOptions], Root> = (options = {}) => {
 	return async (tree) => {
 		const blocks: Block[] = [];
-		visit(tree, "paragraph", (node: Parent, index: number) => {
+		visit(tree, "paragraph", (node, index) => {
 			if (node.children.length !== 1) {
 				return;
 			}
 			if (node.data !== undefined) {
 				return;
 			}
-			visit(node, "text", (textNode: Literal) => {
+			visit(node, "text", (textNode) => {
 				const urls = (textNode.value as string).match(
 					/(https?:\/\/|www(?=\.))([-.\w]+)([^ \t\r\n]*)/g,
 				);
@@ -226,10 +226,17 @@ const remarkLinkCardCtm: Plugin<[RemarkLinkCardCtmOptions], Parent> = (options =
 		for (const { url, index } of blocks) {
 			const data = await fetchData(url);
 			const linkCardHtml = generateHtml(url, data, options);
-			tree.children.splice(index, 1, {
-				type: "html",
-				value: linkCardHtml,
-			} as unknown as any);
+			if (index === undefined) {
+				tree.children.push({
+					type: "html",
+					value: linkCardHtml,
+				} as unknown as any);
+			} else {
+				tree.children.splice(index, 1, {
+					type: "html",
+					value: linkCardHtml,
+				} as unknown as any);
+			}
 		}
 		return tree;
 	};
