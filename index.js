@@ -10,22 +10,48 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import he from "he";
 import getOpenGraph from "open-graph-scraper";
 import visit from "unist-util-visit";
-const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY = 500;
 function getFaviconUrl(url) {
     return `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${url}&size=64`;
+}
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+function retry(fn_1) {
+    return __awaiter(this, arguments, void 0, function* (fn, retries = MAX_RETRIES, delayMs = RETRY_BASE_DELAY) {
+        let lastError;
+        for (let attempt = 0; attempt < retries; attempt++) {
+            try {
+                return yield fn();
+            }
+            catch (error) {
+                lastError = error;
+                if (attempt === retries - 1) {
+                    break;
+                }
+                const waitMs = delayMs * Math.pow(2, attempt); // simple exponential backoff
+                yield sleep(waitMs);
+            }
+        }
+        throw lastError;
+    });
 }
 function getYoutubeMetadata(url) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const response = yield fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}`, {
-                headers: {
-                    "User-Agent": USER_AGENT,
-                },
-            });
-            if (!response.ok) {
-                throw new Error(`YouTube oEmbed request failed: ${response.statusText}`);
-            }
-            const data = yield response.json();
+            const data = yield retry(() => __awaiter(this, void 0, void 0, function* () {
+                const response = yield fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}`, {
+                    headers: {
+                        "User-Agent": USER_AGENT,
+                    },
+                });
+                if (!response.ok) {
+                    throw new Error(`YouTube oEmbed request failed: ${response.status} ${response.statusText}`);
+                }
+                return response.json();
+            }));
             return {
                 ogTitle: `${data.title} - YouTube`,
                 ogImage: [
@@ -37,7 +63,7 @@ function getYoutubeMetadata(url) {
             };
         }
         catch (error) {
-            console.error(`Error fetching YouTube metadata: ${error}`);
+            console.error(`Error fetching YouTube metadata: ${url}`, error);
             return undefined;
         }
     });
@@ -45,15 +71,17 @@ function getYoutubeMetadata(url) {
 function getOpenGraphResult(url) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            let { result } = yield getOpenGraph({
-                url,
-                timeout: 10000,
-                fetchOptions: {
-                    headers: {
-                        "User-Agent": USER_AGENT,
+            let { result } = yield retry(() => __awaiter(this, void 0, void 0, function* () {
+                return getOpenGraph({
+                    url,
+                    timeout: 10000,
+                    fetchOptions: {
+                        headers: {
+                            "User-Agent": USER_AGENT,
+                        },
                     },
-                },
-            });
+                });
+            }));
             if (url.includes("youtube.com") || url.includes("youtu.be")) {
                 const youtubeMetadata = yield getYoutubeMetadata(url);
                 if (youtubeMetadata) {
@@ -63,7 +91,7 @@ function getOpenGraphResult(url) {
             return result;
         }
         catch (error) {
-            console.error(`Error fetching Open Graph data: ${error}`);
+            console.error(`Error fetching Open Graph data: ${url}`, error);
             return undefined;
         }
     });

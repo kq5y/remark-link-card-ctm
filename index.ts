@@ -3,7 +3,7 @@ import getOpenGraph from "open-graph-scraper";
 import type { Literal, Parent } from "unist";
 import visit from "unist-util-visit";
 
-const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
 
 interface RemarkLinkCardCtmOptions {
 	shortenUrl?: boolean;
@@ -24,26 +24,56 @@ interface ResultData {
 	hostname: string;
 }
 
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY = 500;
+
 function getFaviconUrl(url: string) {
 	return `https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${url}&size=64`;
 }
 
+function sleep(ms: number) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function retry<T>(
+	fn: () => Promise<T>,
+	retries = MAX_RETRIES,
+	delayMs = RETRY_BASE_DELAY
+): Promise<T> {
+	let lastError: unknown;
+	for (let attempt = 0; attempt < retries; attempt++) {
+		try {
+			return await fn();
+		} catch (error) {
+			lastError = error;
+			if (attempt === retries - 1) {
+				break;
+			}
+			const waitMs = delayMs * Math.pow(2, attempt); // simple exponential backoff
+			await sleep(waitMs);
+		}
+	}
+	throw lastError;
+}
+
 async function getYoutubeMetadata(url: string) {
 	try {
-		const response = await fetch(
-			`https://www.youtube.com/oembed?url=${encodeURIComponent(
-				url
-			)}`,
-			{
-				headers: {
-					"User-Agent": USER_AGENT,
-				},
+		const data = await retry(async () => {
+			const response = await fetch(
+				`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}`,
+				{
+					headers: {
+						"User-Agent": USER_AGENT,
+					},
+				}
+			);
+			if (!response.ok) {
+				throw new Error(
+					`YouTube oEmbed request failed: ${response.status} ${response.statusText}`
+				);
 			}
-		);
-		if (!response.ok) {
-			throw new Error(`YouTube oEmbed request failed: ${response.statusText}`);
-		}
-		const data = await response.json();
+			return response.json();
+		});
 		return {
 			ogTitle: `${data.title} - YouTube`,
 			ogImage: [
@@ -54,21 +84,23 @@ async function getYoutubeMetadata(url: string) {
 			]
 		};
 	} catch (error) {
-		console.error(`Error fetching YouTube metadata: ${error}`);
+		console.error(`Error fetching YouTube metadata: ${url}`, error);
 		return undefined;
 	}
 }
 
 async function getOpenGraphResult(url: string) {
 	try {
-		let { result } = await getOpenGraph({
-			url,
-			timeout: 10000,
-			fetchOptions: {
-				headers: {
-					"User-Agent": USER_AGENT,
+		let { result } = await retry(async () => {
+			return getOpenGraph({
+				url,
+				timeout: 10000,
+				fetchOptions: {
+					headers: {
+						"User-Agent": USER_AGENT,
+					},
 				},
-			},
+			});
 		});
 		if (url.includes("youtube.com") || url.includes("youtu.be")) {
 			const youtubeMetadata = await getYoutubeMetadata(url);
@@ -78,7 +110,7 @@ async function getOpenGraphResult(url: string) {
 		}
 		return result;
 	} catch (error) {
-		console.error(`Error fetching Open Graph data: ${url}`);
+		console.error(`Error fetching Open Graph data: ${url}`, error);
 		return undefined;
 	}
 }
@@ -91,8 +123,10 @@ async function fetchData(url: string): Promise<ResultData> {
 	const description =
 		(ogResult?.ogDescription && he.encode(ogResult.ogDescription)) || "";
 	const faviconUrl = getFaviconUrl(url);
+
 	let ogImageSrc: string;
 	let ogImageAlt: string;
+
 	if (ogResult?.ogImage && ogResult.ogImage.length >= 1) {
 		const ogImage = ogResult.ogImage[0];
 		ogImageSrc = ogImage.url;
@@ -104,6 +138,7 @@ async function fetchData(url: string): Promise<ResultData> {
 		ogImageSrc = "";
 		ogImageAlt = title;
 	}
+
 	return {
 		title,
 		description,
