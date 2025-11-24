@@ -1,6 +1,6 @@
 {
   "name": "remark-link-card-ctm",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "remark-link-card-ctm",
   "scripts": {
     "build": "tsc --build --clean && tsc --build --declaration"
