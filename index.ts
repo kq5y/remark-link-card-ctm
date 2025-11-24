@@ -1,7 +1,7 @@
 import he from "he";
 import getOpenGraph from "open-graph-scraper";
 import type { Literal, Parent } from "unist";
-import visit from "unist-util-visit";
+import { visit } from "unist-util-visit";
 
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
 const YOUTUBE_USER_AGENT = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
@@ -193,17 +193,17 @@ function generateHtml(
 }
 
 const remarkLinkCardCtm = (options: RemarkLinkCardCtmOptions = {}) => {
-	return async (tree: Parent<Literal>) => {
+	return async (tree: Parent) => {
 		const blocks: Block[] = [];
-		visit<Parent>(tree, "paragraph", (node, index) => {
+		visit(tree, "paragraph", (node: Parent, index: number) => {
 			if (node.children.length !== 1) {
 				return;
 			}
 			if (node.data !== undefined) {
 				return;
 			}
-			visit<Literal<string>>(node, "text", (textNode) => {
-				const urls = textNode.value.match(
+			visit(node, "text", (textNode: Literal) => {
+				const urls = (textNode.value as string).match(
 					/(https?:\/\/|www(?=\.))([-.\w]+)([^ \t\r\n]*)/g,
 				);
 				if (urls && urls.length === 1) {
@@ -220,7 +220,7 @@ const remarkLinkCardCtm = (options: RemarkLinkCardCtmOptions = {}) => {
 			tree.children.splice(index, 1, {
 				type: "html",
 				value: linkCardHtml,
-			});
+			} as unknown as any);
 		}
 		return tree;
 	};

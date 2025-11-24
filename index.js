@@ -1,15 +1,6 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import he from "he";
 import getOpenGraph from "open-graph-scraper";
-import visit from "unist-util-visit";
+import { visit } from "unist-util-visit";
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
 const YOUTUBE_USER_AGENT = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
 const MAX_RETRIES = 3;
@@ -20,116 +11,108 @@ function getFaviconUrl(url) {
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
-function retry(fn_1) {
-    return __awaiter(this, arguments, void 0, function* (fn, retries = MAX_RETRIES, delayMs = RETRY_BASE_DELAY) {
-        let lastError;
-        for (let attempt = 0; attempt < retries; attempt++) {
-            try {
-                return yield fn();
-            }
-            catch (error) {
-                lastError = error;
-                if (attempt === retries - 1) {
-                    break;
-                }
-                const waitMs = delayMs * Math.pow(2, attempt); // simple exponential backoff
-                yield sleep(waitMs);
-            }
-        }
-        throw lastError;
-    });
-}
-function getYoutubeMetadata(url) {
-    return __awaiter(this, void 0, void 0, function* () {
+async function retry(fn, retries = MAX_RETRIES, delayMs = RETRY_BASE_DELAY) {
+    let lastError;
+    for (let attempt = 0; attempt < retries; attempt++) {
         try {
-            const data = yield retry(() => __awaiter(this, void 0, void 0, function* () {
-                const response = yield fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}`, {
-                    headers: {
-                        "User-Agent": USER_AGENT,
-                    },
-                });
-                if (!response.ok) {
-                    throw new Error(`YouTube oEmbed request failed: ${response.status} ${response.statusText}`);
-                }
-                return response.json();
-            }));
-            return {
-                ogTitle: `${data.title} - YouTube`,
-                ogImage: [
-                    {
-                        url: data.thumbnail_url,
-                        alt: data.title,
-                    }
-                ]
-            };
+            return await fn();
         }
         catch (error) {
-            console.error(`Error fetching YouTube metadata: ${url}`, error);
-            return undefined;
+            lastError = error;
+            if (attempt === retries - 1) {
+                break;
+            }
+            const waitMs = delayMs * Math.pow(2, attempt); // simple exponential backoff
+            await sleep(waitMs);
         }
-    });
+    }
+    throw lastError;
+}
+async function getYoutubeMetadata(url) {
+    try {
+        const data = await retry(async () => {
+            const response = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}`, {
+                headers: {
+                    "User-Agent": USER_AGENT,
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`YouTube oEmbed request failed: ${response.status} ${response.statusText}`);
+            }
+            return response.json();
+        });
+        return {
+            ogTitle: `${data.title} - YouTube`,
+            ogImage: [
+                {
+                    url: data.thumbnail_url,
+                    alt: data.title,
+                }
+            ]
+        };
+    }
+    catch (error) {
+        console.error(`Error fetching YouTube metadata: ${url}`, error);
+        return undefined;
+    }
 }
 function isYoutubeUrl(url) {
     return url.includes("youtube.com") || url.includes("youtu.be");
 }
-function getOpenGraphResult(url) {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            let { result } = yield retry(() => __awaiter(this, void 0, void 0, function* () {
-                return getOpenGraph({
-                    url,
-                    timeout: 10000,
-                    fetchOptions: {
-                        headers: {
-                            "User-Agent": isYoutubeUrl(url) ? YOUTUBE_USER_AGENT : USER_AGENT,
-                        },
+async function getOpenGraphResult(url) {
+    try {
+        let { result } = await retry(async () => {
+            return getOpenGraph({
+                url,
+                timeout: 10000,
+                fetchOptions: {
+                    headers: {
+                        "User-Agent": isYoutubeUrl(url) ? YOUTUBE_USER_AGENT : USER_AGENT,
                     },
-                });
-            }));
-            if (isYoutubeUrl(url)) {
-                const youtubeMetadata = yield getYoutubeMetadata(url);
-                if (youtubeMetadata) {
-                    result = Object.assign(Object.assign({}, result), youtubeMetadata);
-                }
+                },
+            });
+        });
+        if (isYoutubeUrl(url)) {
+            const youtubeMetadata = await getYoutubeMetadata(url);
+            if (youtubeMetadata) {
+                result = { ...result, ...youtubeMetadata };
             }
-            return result;
         }
-        catch (error) {
-            console.error(`Error fetching Open Graph data: ${url}`, error);
-            return undefined;
-        }
-    });
+        return result;
+    }
+    catch (error) {
+        console.error(`Error fetching Open Graph data: ${url}`, error);
+        return undefined;
+    }
 }
-function fetchData(url) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const ogResult = yield getOpenGraphResult(url);
-        const parsedUrl = new URL(url);
-        const title = ((ogResult === null || ogResult === void 0 ? void 0 : ogResult.ogTitle) && he.encode(ogResult.ogTitle)) || parsedUrl.hostname;
-        const description = ((ogResult === null || ogResult === void 0 ? void 0 : ogResult.ogDescription) && he.encode(ogResult.ogDescription)) || "";
-        const faviconUrl = getFaviconUrl(url);
-        let ogImageSrc;
-        let ogImageAlt;
-        if ((ogResult === null || ogResult === void 0 ? void 0 : ogResult.ogImage) && ogResult.ogImage.length >= 1) {
-            const ogImage = ogResult.ogImage[0];
-            ogImageSrc = ogImage.url;
-            if (ogImageSrc.startsWith("/")) {
-                ogImageSrc = new URL(ogImageSrc, url).href;
-            }
-            ogImageAlt = (ogImage.alt && he.encode(ogImage.alt)) || "";
+async function fetchData(url) {
+    const ogResult = await getOpenGraphResult(url);
+    const parsedUrl = new URL(url);
+    const title = (ogResult?.ogTitle && he.encode(ogResult.ogTitle)) || parsedUrl.hostname;
+    const description = (ogResult?.ogDescription && he.encode(ogResult.ogDescription)) || "";
+    const faviconUrl = getFaviconUrl(url);
+    let ogImageSrc;
+    let ogImageAlt;
+    if (ogResult?.ogImage && ogResult.ogImage.length >= 1) {
+        const ogImage = ogResult.ogImage[0];
+        ogImageSrc = ogImage.url;
+        if (ogImageSrc.startsWith("/")) {
+            ogImageSrc = new URL(ogImageSrc, url).href;
         }
-        else {
-            ogImageSrc = "";
-            ogImageAlt = title;
-        }
-        return {
-            title,
-            description,
-            faviconUrl,
-            ogImageSrc,
-            ogImageAlt,
-            hostname: parsedUrl.hostname,
-        };
-    });
+        ogImageAlt = (ogImage.alt && he.encode(ogImage.alt)) || "";
+    }
+    else {
+        ogImageSrc = "";
+        ogImageAlt = title;
+    }
+    return {
+        title,
+        description,
+        faviconUrl,
+        ogImageSrc,
+        ogImageAlt,
+        hostname: parsedUrl.hostname,
+    };
 }
 function generateHtml(url, data, options) {
     const displayUrl = decodeURI(options.shortenUrl ? data.hostname : url);
@@ -164,7 +147,7 @@ function generateHtml(url, data, options) {
   `.trim();
 }
 const remarkLinkCardCtm = (options = {}) => {
-    return (tree) => __awaiter(void 0, void 0, void 0, function* () {
+    return async (tree) => {
         const blocks = [];
         visit(tree, "paragraph", (node, index) => {
             if (node.children.length !== 1) {
@@ -184,7 +167,7 @@ const remarkLinkCardCtm = (options = {}) => {
             });
         });
         for (const { url, index } of blocks) {
-            const data = yield fetchData(url);
+            const data = await fetchData(url);
             const linkCardHtml = generateHtml(url, data, options);
             tree.children.splice(index, 1, {
                 type: "html",
@@ -192,6 +175,6 @@ const remarkLinkCardCtm = (options = {}) => {
             });
         }
         return tree;
-    });
+    };
 };
 export default remarkLinkCardCtm;
