@@ -116,6 +116,10 @@ async function fetchData(url) {
 }
 function generateHtml(url, data, options) {
     const displayUrl = decodeURI(options.shortenUrl ? data.hostname : url);
+    const imageSrc = data.ogImageSrc || options.fallbackImageSrc || "";
+    const imageAlt = data.ogImageSrc
+        ? data.ogImageAlt
+        : (options.fallbackImageAlt || data.title);
     return `
     <a class="rlc-container" href="${url}">
       <div class="rlc-info">
@@ -133,12 +137,12 @@ function generateHtml(url, data, options) {
           <span class="rlc-url">${displayUrl}</span>
         </div>
       </div>
-      ${data.ogImageSrc
+      ${imageSrc
         ? `<div class="rlc-image-container">
         <img
           class="rlc-image"
-          src="${data.ogImageSrc}"
-          alt="${data.ogImageAlt}"
+          src="${imageSrc}"
+          alt="${imageAlt}"
           ${options.imgAsyncLazy ? `decoding="async" loading="lazy"` : ""}
         />
       </div>`
