@@ -4,6 +4,7 @@ import type { Literal, Parent } from "unist";
 import visit from "unist-util-visit";
 
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
+const YOUTUBE_USER_AGENT = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
 
 interface RemarkLinkCardCtmOptions {
 	shortenUrl?: boolean;
@@ -89,6 +90,10 @@ async function getYoutubeMetadata(url: string) {
 	}
 }
 
+function isYoutubeUrl(url: string): boolean {
+	return url.includes("youtube.com") || url.includes("youtu.be");
+}
+
 async function getOpenGraphResult(url: string) {
 	try {
 		let { result } = await retry(async () => {
@@ -97,12 +102,12 @@ async function getOpenGraphResult(url: string) {
 				timeout: 10000,
 				fetchOptions: {
 					headers: {
-						"User-Agent": USER_AGENT,
+						"User-Agent": isYoutubeUrl(url) ? YOUTUBE_USER_AGENT : USER_AGENT,
 					},
 				},
 			});
 		});
-		if (url.includes("youtube.com") || url.includes("youtu.be")) {
+		if (isYoutubeUrl(url)) {
 			const youtubeMetadata = await getYoutubeMetadata(url);
 			if (youtubeMetadata) {
 				result = { ...result, ...youtubeMetadata };

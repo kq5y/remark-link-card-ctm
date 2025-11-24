@@ -11,6 +11,7 @@ import he from "he";
 import getOpenGraph from "open-graph-scraper";
 import visit from "unist-util-visit";
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
+const YOUTUBE_USER_AGENT = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY = 500;
 function getFaviconUrl(url) {
@@ -68,6 +69,9 @@ function getYoutubeMetadata(url) {
         }
     });
 }
+function isYoutubeUrl(url) {
+    return url.includes("youtube.com") || url.includes("youtu.be");
+}
 function getOpenGraphResult(url) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -77,12 +81,12 @@ function getOpenGraphResult(url) {
                     timeout: 10000,
                     fetchOptions: {
                         headers: {
-                            "User-Agent": USER_AGENT,
+                            "User-Agent": isYoutubeUrl(url) ? YOUTUBE_USER_AGENT : USER_AGENT,
                         },
                     },
                 });
             }));
-            if (url.includes("youtube.com") || url.includes("youtu.be")) {
+            if (isYoutubeUrl(url)) {
                 const youtubeMetadata = yield getYoutubeMetadata(url);
                 if (youtubeMetadata) {
                     result = Object.assign(Object.assign({}, result), youtubeMetadata);
