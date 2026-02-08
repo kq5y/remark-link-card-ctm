@@ -1,10 +1,22 @@
+import { gotScraping } from "got-scraping";
 import he from "he";
 import type { Root } from "mdast";
 import getOpenGraph from "open-graph-scraper";
+import puppeteerExtra from "puppeteer-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import type { Browser } from "puppeteer";
 import type { Plugin } from "unified";
 import { visit } from "unist-util-visit";
 
-const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
+const puppeteer = puppeteerExtra.default ?? puppeteerExtra;
+puppeteer.use(StealthPlugin());
+
+const USER_AGENTS = [
+	"facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+	"Twitterbot/1.0",
+	"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+];
 const YOUTUBE_USER_AGENT = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
 
 interface RemarkLinkCardCtmOptions {
@@ -67,7 +79,7 @@ async function getYoutubeMetadata(url: string) {
 				`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}`,
 				{
 					headers: {
-						"User-Agent": USER_AGENT,
+						"User-Agent": USER_AGENTS[0],
 					},
 				}
 			);
@@ -97,7 +109,183 @@ function isYoutubeUrl(url: string): boolean {
 	return url.includes("youtube.com") || url.includes("youtu.be");
 }
 
+function isYoutubeVideoUrl(url: string): boolean {
+	if (url.includes("youtu.be/")) {
+		return true;
+	}
+	if (url.includes("youtube.com/watch")) {
+		return true;
+	}
+	if (url.includes("youtube.com/embed/")) {
+		return true;
+	}
+	if (url.includes("youtube.com/v/")) {
+		return true;
+	}
+	return false;
+}
+
+function isNpmjsPackageUrl(url: string): boolean {
+	return url.includes("npmjs.com/package/");
+}
+
+function extractNpmPackageName(url: string): string | null {
+	const match = url.match(/npmjs\.com\/package\/(.+?)(?:\?|#|$)/);
+	if (match) {
+		return decodeURIComponent(match[1]);
+	}
+	return null;
+}
+
+async function getNpmjsMetadata(url: string) {
+	const packageName = extractNpmPackageName(url);
+	if (!packageName) {
+		return undefined;
+	}
+	try {
+		const data = await retry(async () => {
+			const response = await fetch(
+				`https://registry.npmjs.org/${encodeURIComponent(packageName).replace(/%40/g, "@").replace(/%2F/g, "/")}`,
+				{
+					headers: {
+						"Accept": "application/json",
+					},
+				}
+			);
+			if (!response.ok) {
+				throw new Error(
+					`npm registry request failed: ${response.status} ${response.statusText}`
+				);
+			}
+			return response.json();
+		});
+		const description = data.description || "";
+		return {
+			ogTitle: `${packageName} - npm`,
+			ogDescription: description,
+			ogImage: [
+				{
+					url: "https://static-production.npmjs.com/338e4905a2684ca96e08c7780fc68412.png",
+					alt: packageName,
+				}
+			]
+		};
+	} catch (error) {
+		console.error(`Error fetching npm metadata: ${url}`, error);
+		return undefined;
+	}
+}
+
+let browserInstance: Browser | null = null;
+let browserCleanupRegistered = false;
+
+async function getBrowser(): Promise<Browser> {
+	if (!browserInstance) {
+		browserInstance = await puppeteer.launch({
+			headless: true,
+			executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+			args: [
+				"--no-sandbox",
+				"--disable-setuid-sandbox",
+				"--disable-dev-shm-usage",
+				"--disable-gpu",
+			],
+		});
+
+		if (!browserCleanupRegistered) {
+			browserCleanupRegistered = true;
+			process.on("exit", () => {
+				browserInstance?.close();
+			});
+		}
+	}
+	return browserInstance;
+}
+
+async function fetchHtmlWithPuppeteer(url: string): Promise<string | null> {
+	try {
+		const browser = await getBrowser();
+		const page = await browser.newPage();
+		await page.setUserAgent(
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
+		);
+		await page.setExtraHTTPHeaders({
+			"Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+		});
+
+		const response = await page.goto(url, {
+			waitUntil: "networkidle2",
+			timeout: 20000,
+		});
+
+		// Check if we got a valid response
+		if (!response || response.status() >= 400) {
+			await page.close();
+			return null;
+		}
+
+		// Wait a bit for any JS challenges to complete
+		await sleep(1000);
+
+		const html = await page.content();
+		await page.close();
+		return html;
+	} catch {
+		return null;
+	}
+}
+
+function hasValidOgTags(html: string): boolean {
+	return html.includes('og:title') || html.includes('og:description') || html.includes('<title');
+}
+
+async function fetchHtmlDirectly(url: string): Promise<string | null> {
+	// First try got-scraping
+	try {
+		const response = await gotScraping({
+			url,
+			timeout: { request: 10000 },
+			headers: {
+				"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+				"Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+			},
+		});
+		if (response.statusCode === 200 && hasValidOgTags(response.body)) {
+			return response.body;
+		}
+	} catch {
+		// ignore, try puppeteer
+	}
+
+	// Fallback to Puppeteer for sites with advanced protection
+	return await fetchHtmlWithPuppeteer(url);
+}
+
 async function getOpenGraphResult(url: string) {
+	// npmjs.com uses Cloudflare protection, use Registry API instead
+	if (isNpmjsPackageUrl(url)) {
+		return await getNpmjsMetadata(url);
+	}
+
+	// First, try to fetch HTML directly with multiple User-Agents
+	const html = await fetchHtmlDirectly(url);
+	if (html) {
+		try {
+			let { result } = await getOpenGraph({ html });
+			if (isYoutubeVideoUrl(url)) {
+				const youtubeMetadata = await getYoutubeMetadata(url);
+				if (youtubeMetadata) {
+					result = { ...result, ...youtubeMetadata };
+				}
+			}
+			return result;
+		} catch {
+			// ignore parse errors
+		}
+	}
+
+	// Fallback: use open-graph-scraper directly
+	const userAgent = isYoutubeUrl(url) ? YOUTUBE_USER_AGENT : USER_AGENTS[0];
 	try {
 		let { result } = await retry(async () => {
 			return getOpenGraph({
@@ -105,12 +293,14 @@ async function getOpenGraphResult(url: string) {
 				timeout: 10000,
 				fetchOptions: {
 					headers: {
-						"User-Agent": isYoutubeUrl(url) ? YOUTUBE_USER_AGENT : USER_AGENT,
+						"User-Agent": userAgent,
+						"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+						"Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
 					},
 				},
 			});
 		});
-		if (isYoutubeUrl(url)) {
+		if (isYoutubeVideoUrl(url)) {
 			const youtubeMetadata = await getYoutubeMetadata(url);
 			if (youtubeMetadata) {
 				result = { ...result, ...youtubeMetadata };
