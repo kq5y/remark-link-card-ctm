@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       got-scraping:
-        specifier: ^4.1.3
+        specifier: 4.1.3
         version: 4.1.3
       he:
         specifier: ^1.2.0
