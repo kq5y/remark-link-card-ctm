@@ -1,7 +1,5 @@
-import { gotScraping } from "got-scraping";
 import he from "he";
 import type { Root } from "mdast";
-import getOpenGraph from "open-graph-scraper";
 import puppeteerExtra from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import type { Browser } from "puppeteer";
@@ -40,6 +38,17 @@ interface ResultData {
 	hostname: string;
 }
 
+interface OpenGraphImage {
+	url: string;
+	alt?: string;
+}
+
+interface OpenGraphResult {
+	ogTitle?: string;
+	ogDescription?: string;
+	ogImage?: OpenGraphImage[];
+}
+
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY = 500;
 
@@ -49,6 +58,58 @@ function getFaviconUrl(url: string) {
 
 function sleep(ms: number) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function firstMetaContent(html: string, keys: string[]) {
+	const metaTags = html.match(/<meta\b[^>]*>/gi) ?? [];
+	for (const tag of metaTags) {
+		const keyMatch = tag.match(/\b(?:property|name)=["']([^"']+)["']/i);
+		if (!keyMatch) {
+			continue;
+		}
+		const key = keyMatch[1].toLowerCase();
+		if (!keys.includes(key)) {
+			continue;
+		}
+		const contentMatch = tag.match(/\bcontent=(["'])(.*?)\1/i);
+		if (contentMatch) {
+			return contentMatch[2];
+		}
+	}
+	return undefined;
+}
+
+function extractTitle(html: string) {
+	return (
+		firstMetaContent(html, ["og:title"]) ??
+		html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim()
+	);
+}
+
+function extractOpenGraphData(html: string): OpenGraphResult | undefined {
+	const ogTitle = extractTitle(html);
+	const ogDescription =
+		firstMetaContent(html, ["og:description"]) ??
+		firstMetaContent(html, ["description"]);
+	const ogImage = firstMetaContent(html, ["og:image"]);
+	const ogImageAlt = firstMetaContent(html, ["og:image:alt"]);
+
+	if (!ogTitle && !ogDescription && !ogImage) {
+		return undefined;
+	}
+
+	return {
+		ogTitle,
+		ogDescription,
+		ogImage: ogImage
+			? [
+					{
+						url: ogImage,
+						alt: ogImageAlt,
+					},
+			  ]
+			: undefined,
+	};
 }
 
 async function retry<T>(
@@ -240,18 +301,19 @@ function hasValidOgTags(html: string): boolean {
 }
 
 async function fetchHtmlDirectly(url: string): Promise<string | null> {
-	// First try got-scraping
 	try {
-		const response = await gotScraping({
-			url,
-			timeout: { request: 10000 },
+		const response = await fetch(url, {
 			headers: {
 				"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
 				"Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+				"User-Agent": USER_AGENTS[0],
 			},
 		});
-		if (response.statusCode === 200 && hasValidOgTags(response.body)) {
-			return response.body;
+		if (response.ok) {
+			const html = await response.text();
+			if (hasValidOgTags(html)) {
+				return html;
+			}
 		}
 	} catch {
 		// ignore, try puppeteer
@@ -271,11 +333,11 @@ async function getOpenGraphResult(url: string) {
 	const html = await fetchHtmlDirectly(url);
 	if (html) {
 		try {
-			let { result } = await getOpenGraph({ html });
+			const result = extractOpenGraphData(html);
 			if (isYoutubeVideoUrl(url)) {
 				const youtubeMetadata = await getYoutubeMetadata(url);
 				if (youtubeMetadata) {
-					result = { ...result, ...youtubeMetadata };
+					return { ...result, ...youtubeMetadata };
 				}
 			}
 			return result;
@@ -287,23 +349,23 @@ async function getOpenGraphResult(url: string) {
 	// Fallback: use open-graph-scraper directly
 	const userAgent = isYoutubeUrl(url) ? YOUTUBE_USER_AGENT : USER_AGENTS[0];
 	try {
-		let { result } = await retry(async () => {
-			return getOpenGraph({
-				url,
-				timeout: 10000,
-				fetchOptions: {
-					headers: {
-						"User-Agent": userAgent,
-						"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-						"Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
-					},
+		const result = await retry(async () => {
+			const response = await fetch(url, {
+				headers: {
+					"User-Agent": userAgent,
+					"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+					"Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
 				},
 			});
+			if (!response.ok) {
+				throw new Error(`Open Graph request failed: ${response.status} ${response.statusText}`);
+			}
+			return extractOpenGraphData(await response.text());
 		});
 		if (isYoutubeVideoUrl(url)) {
 			const youtubeMetadata = await getYoutubeMetadata(url);
 			if (youtubeMetadata) {
-				result = { ...result, ...youtubeMetadata };
+				return { ...result, ...youtubeMetadata };
 			}
 		}
 		return result;
